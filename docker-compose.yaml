@@ -1,0 +1,53 @@
+version: '3.8'
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.15.0
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    networks:
+      - monitoring
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.15.0
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+    ports:
+      - "5044:5044"
+    depends_on:
+      - elasticsearch
+    networks:
+      - monitoring
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.15.0
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - monitoring
+
+  suricata:
+    image: jasonish/suricata:latest
+    cap_add:
+      - NET_ADMIN
+      - SYS_NICE  # Aggiunto per migliorare la gestione delle priorità
+    volumes:
+      - ./suricata.yaml:/etc/suricata/suricata.yaml
+      - /var/log/suricata:/var/log/suricata  # Monta la directory dei log di Suricata
+      - /var/lib/suricata/rules:/var/lib/suricata/rules  # Assicurati che le regole siano accessibili
+    networks:
+      - monitoring
+
+  traffic-generator:
+    image: alpine
+    command: sh -c "while true; do wget -q -O- http://kibana:5601; sleep 2; done"
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    driver: bridge
